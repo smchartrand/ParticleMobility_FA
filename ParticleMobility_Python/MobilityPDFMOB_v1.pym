@@ -1,0 +1,73 @@
+# This file was automatically translated by OMPC (http://ompc.juricap.com)
+
+from ompc import *
+
+@mfunction("TCMPercentileM, Percentile")
+def MobilityPDFMOB_v1(GSDlength=None, taucrit=None, taucritless=None, PsiMIN=None, PsiMAX=None, R2GSeval=None, VRandom=None):
+    
+    #% THIS FUNCTION COMPUTES PROBABILITY DISTRIBUTIONS OF MOBILITY DEFINED BY
+    # one-half PSI class intervals.  The results are used to compute sediment
+    # transport.
+    
+    # Provide an increment for the Psi class interval
+    PsiIncrement = 0.5
+    # Define the length of the Psi class array based on the inpurt GSD
+    PsiArrayLength = ((PsiMAX - PsiMIN) / PsiIncrement) + 1
+    # Use the logical indexing to build the Psi class array
+    j = mslice[1:PsiArrayLength]
+    PsiArray(j).lvalue = mslice[PsiMIN:PsiIncrement:PsiMAX]
+    # Convert the random grains used to compute mobility to Psi units
+    R2GSPsi = log2(R2GSeval)
+    
+    MobilityMatrix = mcat([R2GSPsi, taucrit, taucritless])
+    MM = sortrows(MobilityMatrix, 1)
+    taucritlessarray = MM(mslice[:], 3)
+    taucritlessmatrix = repmat(taucritlessarray, 1, GSDlength)
+    taucritlessmatrix(isnan(taucritlessmatrix)).lvalue = 0
+    
+    PsiMatrix(VRandom, PsiArrayLength - 1).lvalue = 0
+    
+    for j in mslice[1:PsiArrayLength - 1]:    
+        
+        if j == 1:        
+            
+            PsiMatrix(mslice[:], j).lvalue = MM(mslice[:], 1) < PsiArray(j + 1)        
+            
+        elif j > 1 and j < PsiArrayLength - 1:        
+            
+            PsiMatrix(mslice[:], j).lvalue = MM(mslice[:], 1) >= PsiArray(j) & MM(mslice[:], 1) < PsiArray(j + 1)        
+            
+        else:        
+            
+            PsiMatrix(mslice[:], j).lvalue = MM(mslice[:], 1) > PsiArray(j)        
+            
+        end    
+        
+    end
+    
+    PsiMatrix(all(PsiMatrix == 0, 2), mslice[:]).lvalue = mcat([])
+    taucritlessmatrix(all(taucritlessmatrix == 0, 2), mslice[:]).lvalue = mcat([])
+    
+    # Now build a taucritless matrix that is filtered by Psi class.  This
+    # result will be used to build PDFs of the taucritless by Psi class.
+    taucritlessmatrix(not PsiMatrix).lvalue = 0
+    # Transpose the matrix so it lines up the the terms of GSD matrix
+    TCM = taucritlessmatrix.cT
+    # Sort each row of the TCM matrix to make the statistics easier
+    TCMrowsort = sort(TCM, 2, mstring('descend'))
+    # Replace zeros with NaN so the statistics compute correctly
+    TCMrowsort(TCMrowsort == 0).lvalue = NaN
+    
+    # Now compute percentile statistics of dimensionless critical Shields
+    # stress for each Psi class.  This is made easy with the matlab prctile
+    # function.  Specify the percentile classes to compute and then compute
+    # the percenitle results. The last number in parentheses tells matlab to 
+    # operate on the rows, not the columns
+    Percentile = mcat([10, 20, 30, 40, 50, 60, 70, 80, 90])
+    TCMPercentileM = prctile(TCMrowsort, Percentile, 2)
+    
+end
+
+
+
+
