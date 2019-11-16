@@ -11,18 +11,19 @@ function [ D50,D84,GSDuse,GS_Dg,GS_Sigma,GSDlength,Grain_mmAvg ]...
         'Enter the standard deviation of the distribution (0.25 - 2.0):'};
     dlg_title = 'Friction angle measurement virtual streambed and particle number details';
     num_lines = 1;
-    defaultans = {'8','0.5'};
+    defaultans = {'7.3','0.68'};
     ILanswer = inputdlg(prompt,dlg_title,num_lines,defaultans);
     % Pass the distribution mean to a variable
     GS_Dg = str2double(ILanswer{1});
     % Convert the geometric mean value (in millimeters) to Psi units
-    GS_DgPsi = log(GS_Dg) / log(2);
+    GS_DgPsi = log2(GS_Dg);
+    %GS_DgPsi = log2(GS_Dg) / log(2);
     % Pass the standard deviation input to a variable
     GS_Sigma = str2double(ILanswer{2});
     % Specify the limits x of the normal distribution - this is equivalent
     % to defining the Psi-based limits of the grain size distribution pdf
-    Upper_GSLimit = GS_DgPsi + (5 * GS_Sigma);
-    Lower_GSLimit = GS_DgPsi - (5 * GS_Sigma);
+    Upper_GSLimit = GS_DgPsi + (4 * GS_Sigma);
+    Lower_GSLimit = GS_DgPsi - (4 * GS_Sigma);
     ND_Limits = (Lower_GSLimit:0.01:Upper_GSLimit);
     % Convert the limits to grain size in millimeters
     GS_inMM = 2.^ND_Limits;
@@ -45,7 +46,7 @@ function [ D50,D84,GSDuse,GS_Dg,GS_Sigma,GSDlength,Grain_mmAvg ]...
     ylabel('Percent finer'),xlabel('Grainsize (mm)');
     title('Simulated Grain Size Distribution');
     
-    FAModelFig1 = ('Model_GSDistribution.png');
+    FAModelFig1 = ('Model_GSDistribution2.png');
     % Export a file and specify dimensions, etc.
     set(gcf, 'Units','centimeters')
     set(gcf,'PaperType','B5','PaperPositionMode','auto') 
@@ -56,8 +57,20 @@ function [ D50,D84,GSDuse,GS_Dg,GS_Sigma,GSDlength,Grain_mmAvg ]...
     % ANGLE MEASUREMENTS. THIS REQUIRES THREE COLUMN VECTORS WITH GRAIN SIZE 
     % (MM), GRAIN SIZE (PSI) AND THE ASSOCIATED CUMULATIVE DISTRIBUTION VALUE
     
+    % Specify Psi Scale
+    PsiLowLimit = -4.0;
+    PsiUppLimit = 12.0;
+    PsiScale = PsiLowLimit:0.5:PsiUppLimit;
+    
     % Specify the PsiRange vector for analysis
-    PsiRange = (Lower_GSLimit:0.5:Upper_GSLimit);
+    PsiLow = PsiScale(find(PsiScale<Lower_GSLimit,1,'last'));
+    PsiUpp = PsiScale(find(PsiScale>Upper_GSLimit,1,'first'));
+    %PsiRange = (PsiLowLimit:0.5:PsiUppLimit);
+    PsiRange = (PsiLow:0.5:PsiUpp);
+    [~,PsiN] = size(PsiRange);
+    if  PsiN == 1
+        error('Error. Grain size distribution has only one grain size')
+    end
     % Find indices which line up with half-scale psi values over the range
     % specified above, and write the associated grain sizes to a new
     % vector, and then write the associated cumulative distribution
@@ -71,7 +84,15 @@ function [ D50,D84,GSDuse,GS_Dg,GS_Sigma,GSDlength,Grain_mmAvg ]...
     % Enter loop
     for j = 1:length(PsiRange)
         
-        Index(j) = find(ND_Limits == PsiRange(j));
+        if j < length(PsiRange)
+            
+           Index(j) = find(ND_Limits > PsiRange(j),1,'first');
+            
+        else
+            
+           Index(j) = find(ND_Limits < PsiRange(j),1,'last'); 
+            
+        end
         GS_Distro_MM(j) = GS_inMM(1,Index(j));
         GS_Distro_CD(j) = Distro(1,Index(j));
     
